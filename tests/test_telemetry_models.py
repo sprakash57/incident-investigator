@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
@@ -60,3 +61,13 @@ def test_message_template(message: str, template: str) -> None:
 def test_unknown_backend_lists_available() -> None:
     with pytest.raises(UnknownBackendError, match="unknown backend 'nope'"):
         get_backend(Settings(backend="nope"))
+
+
+def test_registry_builds_sqlite_backend(demo_db: Path) -> None:
+    backend = get_backend(Settings(backend="sqlite", sqlite_path=demo_db))
+    assert backend.describe().services
+
+
+def test_missing_demo_db_points_at_generate_data(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError, match="iinv generate-data"):
+        get_backend(Settings(backend="sqlite", sqlite_path=tmp_path / "missing.db"))

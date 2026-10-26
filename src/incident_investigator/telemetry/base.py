@@ -22,7 +22,8 @@ class TelemetryBackend(Protocol):
     """Read-only access to logs, metrics, topology, changes and known issues.
 
     Methods for a capability missing from `describe().capabilities` raise
-    `CapabilityNotAvailable`. All timestamps are UTC.
+    `CapabilityNotAvailable`; invalid requests (e.g. an unknown metric) raise `ValueError`
+    with a message the agent can act on. All timestamps are UTC.
     """
 
     def describe(self) -> BackendInfo: ...

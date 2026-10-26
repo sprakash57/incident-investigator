@@ -7,7 +7,16 @@ from incident_investigator.telemetry.base import TelemetryBackend
 
 BackendFactory = Callable[[Settings], TelemetryBackend]
 
-BACKENDS: dict[str, BackendFactory] = {}
+
+def _sqlite(settings: Settings) -> TelemetryBackend:
+    from incident_investigator.telemetry.sqlite import SQLiteBackend
+
+    return SQLiteBackend(settings.sqlite_path)
+
+
+BACKENDS: dict[str, BackendFactory] = {
+    "sqlite": _sqlite,
+}
 
 
 class UnknownBackendError(ValueError):
