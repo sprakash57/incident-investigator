@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, NoReturn
 
+import pydantic_ai
 import typer
 from dotenv import load_dotenv
 from pydantic_ai.exceptions import UserError
@@ -43,6 +44,7 @@ def main(
 ) -> None:
     # Provider SDKs read their API keys (OPENAI_API_KEY, ...) from the environment.
     load_dotenv(Path(".env"))
+    pydantic_ai.BANNER_ENABLED = False  # the CLI owns its output
 
 
 @app.command()
