@@ -12,8 +12,10 @@ backend belong in `examples/runs/`.
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, Field
+from pydantic_ai import ModelMessagesTypeAdapter, capture_run_messages
 from pydantic_ai.exceptions import AgentRunError
 from pydantic_ai.models import Model
 
@@ -50,6 +52,9 @@ class RunFile(BaseModel):
     unknown_citations: list[str] = Field(
         default_factory=list, description="Call ids cited by the report that were never made."
     )
+    messages: list[dict[str, Any]] = Field(
+        default_factory=list, description="Raw model conversation, for debugging and replay."
+    )
 
     @property
     def duration_s(self) -> float:
@@ -76,11 +81,13 @@ def run_and_record(
     """Run an investigation and capture everything about it, including a failed run."""
     started = datetime.now(UTC)
     report = error = usage = None
-    try:
-        result = investigate(question, deps, model=model, max_tool_calls=max_tool_calls)
-    except AgentRunError as exc:
-        error = f"{type(exc).__name__}: {exc}"
-    else:
+    with capture_run_messages() as messages:
+        try:
+            result = investigate(question, deps, model=model, max_tool_calls=max_tool_calls)
+        except AgentRunError as exc:
+            result = None
+            error = f"{type(exc).__name__}: {exc}"
+    if result is not None:
         report = result.report
         usage = UsageSummary(
             requests=result.usage.requests,
@@ -104,4 +111,5 @@ def run_and_record(
         error=error,
         usage=usage,
         unknown_citations=sorted(report.cited_call_ids() - known_ids) if report else [],
+        messages=ModelMessagesTypeAdapter.dump_python(messages, mode="json"),
     )

@@ -33,3 +33,10 @@ def test_mantle_model_without_credentials_explains_what_is_missing(
         monkeypatch.delenv(name, raising=False)
     with pytest.raises(UserError, match="AWS_BEARER_TOKEN_BEDROCK"):
         resolve_model("bedrock-mantle:moonshotai.kimi-k2.5")
+
+
+def test_mantle_models_get_their_family_profile(mantle_env: None) -> None:
+    kimi = resolve_model("bedrock-mantle:moonshotai.kimi-k2.5")
+    assert kimi.profile.get("supports_thinking")  # Kimi profile, not the OpenAI one
+    minimax = resolve_model("bedrock-mantle:minimax.minimax-m2")
+    assert isinstance(minimax, OpenAIChatModel)  # no family profile: OpenAI-compatible defaults

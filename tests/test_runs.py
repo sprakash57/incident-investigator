@@ -32,6 +32,8 @@ def test_successful_run_round_trips(deps: InvestigationDeps, tmp_path: Path) -> 
     assert run.usage is not None and run.usage.tool_calls == 2
     assert run.unknown_citations == []
     assert run.backend.startswith("sqlite")
+    assert run.tool_calls[0].model_call_id  # the model's own id, kept for debugging
+    assert any(m["kind"] == "response" for m in run.messages)
 
     path = run.save(tmp_path / "runs")
     assert path.name == f"{run.id}.json"
@@ -47,6 +49,7 @@ def test_failed_run_is_still_recorded(deps: InvestigationDeps) -> None:
     assert run.report is None
     assert run.error and run.error.startswith("UsageLimitExceeded")
     assert len(run.tool_calls) == 2
+    assert run.messages  # captured even though the run failed
 
 
 def test_model_name_is_recorded(deps: InvestigationDeps) -> None:

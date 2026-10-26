@@ -44,7 +44,11 @@ def _log_line(record: LogRecord) -> str:
 def _call(ctx: Ctx, tool: str, args: dict[str, Any], fn: Callable[[], Any]) -> dict[str, Any]:
     """Run `fn`, record it in the trace, and shape the outcome for the model."""
     trace = ctx.deps.trace
-    record = trace.start(tool, {k: v for k, v in args.items() if v not in (None, [], "")})
+    record = trace.start(
+        tool,
+        {k: v for k, v in args.items() if v not in (None, [], "")},
+        model_call_id=getattr(ctx, "tool_call_id", None),
+    )
     retry: str | None = None
     try:
         record.result = fn()

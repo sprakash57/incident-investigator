@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 class ToolCallRecord(BaseModel):
     id: str = Field(description="Short id the report cites as evidence, e.g. 't3'.")
     tool: str
+    model_call_id: str | None = Field(default=None, description="The model's own tool call id.")
     args: dict[str, Any]
     started_at: datetime
     latency_ms: float | None = None
@@ -37,10 +38,16 @@ class Trace:
         self._ids = itertools.count(1)
         self._lock = threading.Lock()
 
-    def start(self, tool: str, args: dict[str, Any]) -> ToolCallRecord:
+    def start(
+        self, tool: str, args: dict[str, Any], model_call_id: str | None = None
+    ) -> ToolCallRecord:
         with self._lock:
             record = ToolCallRecord(
-                id=f"t{next(self._ids)}", tool=tool, args=args, started_at=datetime.now(UTC)
+                id=f"t{next(self._ids)}",
+                tool=tool,
+                model_call_id=model_call_id,
+                args=args,
+                started_at=datetime.now(UTC),
             )
             self.calls.append(record)
         return record
