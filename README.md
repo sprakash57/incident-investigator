@@ -21,6 +21,7 @@ recommended next actions. A human stays in charge of what happens next.
 ```bash
 uv sync
 cp .env.example .env   # set INVESTIGATOR_MODEL and your provider key
+uv run iinv generate-data   # synthetic "Acme Commerce" dataset -> data/demo.db
 uv run iinv config
 ```
 

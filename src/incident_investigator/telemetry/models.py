@@ -153,6 +153,7 @@ class MetricQuery(BaseModel):
     metric: str
     services: list[str] = Field(default_factory=list)
     step_minutes: int = Field(default=5, ge=1, le=24 * 60)
+    per_instance: bool = Field(default=False, description="One series per instance.")
 
 
 class MetricPoint(BaseModel):
@@ -161,10 +162,11 @@ class MetricPoint(BaseModel):
 
 
 class MetricSeries(BaseModel):
-    """One series per service, averaged over `step_minutes` buckets."""
+    """One series per service (or instance), averaged over `step_minutes` buckets."""
 
     metric: str
     service: str
+    instance: str | None = None
     unit: str
     points: list[MetricPoint]
 
