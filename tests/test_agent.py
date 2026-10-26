@@ -98,3 +98,18 @@ def test_tool_call_budget_is_enforced(deps: InvestigationDeps) -> None:
     model = scripted(*[("get_topology", {})] * 5)
     with pytest.raises(UsageLimitExceeded):
         investigate("checkout is slow", deps, model=model, max_tool_calls=2)
+
+
+def test_model_sees_its_remaining_budget(deps: InvestigationDeps) -> None:
+    model = scripted(
+        ("get_topology", {}),
+        ("known_issues", {}),
+        ("OUTPUT", report_args(cite="t1")),
+    )
+    investigate("checkout is slow", deps, model=model, max_tool_calls=4)
+    remaining = [
+        part.content["tool_calls_remaining"]
+        for part in returns_to_model(model.seen[-1])  # type: ignore[attr-defined]
+        if isinstance(part.content, dict)
+    ]
+    assert remaining == [3, 2]

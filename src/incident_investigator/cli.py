@@ -129,6 +129,7 @@ def investigate(
                 deps,
                 model=_model_for(model_name),
                 max_tool_calls=settings.max_tool_calls,
+                max_output_tokens=settings.max_output_tokens,
             )
         except UserError as exc:
             _fail(f"model setup failed: {exc}")

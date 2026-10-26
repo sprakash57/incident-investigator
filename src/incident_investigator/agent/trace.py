@@ -63,6 +63,20 @@ class Trace:
         self._notify(plan)
         return plan
 
+    def find(self, tool: str, args: dict[str, Any]) -> ToolCallRecord | None:
+        """An earlier successful call with exactly these arguments, if any."""
+        with self._lock:
+            for call in self.calls:
+                if (
+                    call.tool == tool
+                    and call.args == args
+                    and call.result
+                    and not call.error
+                    and "duplicate_of" not in call.result
+                ):
+                    return call
+        return None
+
     def call_ids(self) -> set[str]:
         return {call.id for call in self.calls}
 

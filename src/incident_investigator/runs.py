@@ -77,13 +77,20 @@ def run_and_record(
     *,
     model: Model | str,
     max_tool_calls: int,
+    max_output_tokens: int | None = None,
 ) -> RunFile:
     """Run an investigation and capture everything about it, including a failed run."""
     started = datetime.now(UTC)
     report = error = usage = None
     with capture_run_messages() as messages:
         try:
-            result = investigate(question, deps, model=model, max_tool_calls=max_tool_calls)
+            result = investigate(
+                question,
+                deps,
+                model=model,
+                max_tool_calls=max_tool_calls,
+                max_output_tokens=max_output_tokens,
+            )
         except AgentRunError as exc:
             result = None
             error = f"{type(exc).__name__}: {exc}"

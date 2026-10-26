@@ -12,3 +12,4 @@ class InvestigationDeps:
     backend: TelemetryBackend
     now: datetime  # the moment the investigation treats as "now" (UTC)
     trace: Trace = field(default_factory=Trace)
+    tool_budget: int | None = None  # tool calls allowed in this run; reported back to the model

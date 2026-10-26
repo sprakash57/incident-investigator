@@ -143,3 +143,34 @@ def test_tools_do_not_depend_on_a_specific_backend() -> None:
         for alias in node.names
     }
     assert not {m for m in imported if m and ("sqlite" in m or "boto" in m)}
+
+
+def test_identical_call_is_not_rerun(ctx: Any) -> None:
+    first = tools.get_changes(ctx, START, NOW, services=["payments"])
+    again = tools.get_changes(ctx, START, NOW, services=["payments"])
+    assert again["call_id"] == first["call_id"] == "t1"
+    assert again["duplicate_of"] == "t1"
+    assert "do not repeat" in again["note"]
+    assert [c.id for c in ctx.deps.trace.calls] == ["t1", "t2"]
+    different = tools.get_changes(ctx, START, NOW, services=["checkout"])
+    assert "duplicate_of" not in different
+
+
+def test_results_report_remaining_budget_and_warn_when_low(demo_db: Path) -> None:
+    ctx = make_ctx(SQLiteBackend(demo_db))
+    ctx.deps.tool_budget = 10
+    ctx.usage = SimpleNamespace(tool_calls=1)
+    plenty = tools.get_topology(ctx)
+    assert plenty["tool_calls_remaining"] == 8  # 1 earlier + this one
+    assert "budget_note" not in plenty
+    ctx.usage = SimpleNamespace(tool_calls=7)
+    low = tools.known_issues(ctx)
+    assert low["tool_calls_remaining"] == 2
+    assert "return the incident report now" in low["budget_note"]
+
+
+def test_replanning_reminds_model_of_progress(ctx: Any) -> None:
+    tools.record_plan(ctx, ["a"])
+    tools.get_topology(ctx)
+    reply = tools.record_plan(ctx, ["a"])
+    assert "already made 1 tool calls" in reply

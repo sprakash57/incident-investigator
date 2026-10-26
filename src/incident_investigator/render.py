@@ -27,6 +27,8 @@ def summarize_result(call: ToolCallRecord) -> str:
     result = call.result or {}
     if "unavailable" in result:
         return "not available in this backend"
+    if "duplicate_of" in result:
+        return f"repeat of {result['duplicate_of']} (not re-run)"
     more = " (more available)" if result.get("truncated") else ""
     match call.tool:
         case "search_logs":

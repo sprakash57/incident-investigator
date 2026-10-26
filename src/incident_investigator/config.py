@@ -37,6 +37,12 @@ class Settings(BaseSettings):
     search_provider: SearchProvider = SearchProvider.DUCKDUCKGO
     sandbox: SandboxKind = SandboxKind.SUBPROCESS
     max_tool_calls: int = Field(default=25, ge=1, le=200)
+    max_output_tokens: int | None = Field(
+        default=None,
+        ge=256,
+        description="Per-response output cap sent to the model. Thinking models spend part of it "
+        "on reasoning; raise it to the model's maximum if responses get cut off.",
+    )
     now: datetime | None = Field(
         default=None,
         description="Treat this time as 'now'. Defaults to the current time, capped at the "

@@ -29,6 +29,8 @@ Rules:
 - Interpret relative times ("since 06:30", "this morning") against "now" from
   `describe_environment`. All times are UTC.
 - Keep queries narrow: short time windows, specific services, sensible limits.
+- Tool calls are limited; every result reports `tool_calls_remaining`. Never repeat a call
+  whose result you already have. When few calls remain, stop and return the report.
 - If the data is insufficient, say so in `open_questions` and lower your confidence instead
   of guessing.
 """

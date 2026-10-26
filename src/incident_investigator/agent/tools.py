@@ -28,6 +28,7 @@ from incident_investigator.telemetry.models import (
 Ctx = RunContext[InvestigationDeps]
 
 MAX_METRIC_POINTS = 400
+LOW_BUDGET = 3
 
 
 def _iso(ts: datetime) -> str:
@@ -41,14 +42,38 @@ def _log_line(record: LogRecord) -> str:
     return line
 
 
+def _budget(ctx: Ctx) -> dict[str, Any]:
+    """How many tool calls are left, so the model can pace itself and finish with a report."""
+    if ctx.deps.tool_budget is None:
+        return {}
+    usage = getattr(ctx, "usage", None)
+    # PydanticAI counts a call once it completes; the trace already holds the current one.
+    used = usage.tool_calls + 1 if usage is not None else len(ctx.deps.trace.calls)
+    remaining = max(0, ctx.deps.tool_budget - used)
+    info: dict[str, Any] = {"tool_calls_remaining": remaining}
+    if remaining <= LOW_BUDGET:
+        info["budget_note"] = (
+            "Tool budget nearly used up: stop investigating and return the incident report now, "
+            "with confidence and open questions reflecting what you could not check."
+        )
+    return info
+
+
 def _call(ctx: Ctx, tool: str, args: dict[str, Any], fn: Callable[[], Any]) -> dict[str, Any]:
     """Run `fn`, record it in the trace, and shape the outcome for the model."""
     trace = ctx.deps.trace
-    record = trace.start(
-        tool,
-        {k: v for k, v in args.items() if v not in (None, [], "")},
-        model_call_id=getattr(ctx, "tool_call_id", None),
-    )
+    args = {k: v for k, v in args.items() if v not in (None, [], "")}
+    previous = trace.find(tool, args)
+    record = trace.start(tool, args, model_call_id=getattr(ctx, "tool_call_id", None))
+    if previous is not None:
+        # Models sometimes lose track of earlier results; don't pay for the same query twice.
+        record.result = {
+            "duplicate_of": previous.id,
+            "note": f"Identical to call {previous.id}, whose result is already in this "
+            "conversation. Use that result and continue; do not repeat calls.",
+        }
+        trace.finish(record)
+        return {"call_id": previous.id, **record.result, **_budget(ctx)}
     retry: str | None = None
     try:
         record.result = fn()
@@ -63,7 +88,7 @@ def _call(ctx: Ctx, tool: str, args: dict[str, Any], fn: Callable[[], Any]) -> d
     trace.finish(record)
     if retry:
         raise ModelRetry(retry)
-    return {"call_id": record.id, **record.result}
+    return {"call_id": record.id, **record.result, **_budget(ctx)}
 
 
 def _error_text(exc: Exception) -> str:
@@ -80,7 +105,14 @@ def record_plan(ctx: Ctx, steps: list[str]) -> str:
     Args:
         steps: 3-6 short steps, each naming what you will check and why.
     """
-    ctx.deps.trace.add_plan(steps)
+    trace = ctx.deps.trace
+    replanning = bool(trace.plans)
+    trace.add_plan(steps)
+    if replanning:
+        return (
+            f"Plan updated. You have already made {len(trace.calls)} tool calls whose results are "
+            "in this conversation: build on them, do not start over or repeat them."
+        )
     return "Plan recorded. Follow it, and adapt it if the evidence points elsewhere."
 
 
