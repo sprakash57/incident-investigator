@@ -1,7 +1,8 @@
 # Incident Investigator — Design
 
 Date: 2026-10-25
-Status: draft for approval
+Status: approved 2026-10-26 (revised: CloudWatch adapter in scope, agent-first build order —
+see §2, §3, §9)
 
 ## 1. Intent
 
@@ -15,17 +16,21 @@ evidence chain, blast radius and recommended next actions. A human decides what 
 Tech Lead / Engineering Manager roles and for consulting clients. It must read as
 production-minded engineering, not a course notebook. It must also be a credible base for
 real use: the owner runs a NestJS app on AWS ECS with CloudWatch Logs and wants to point
-this at it later (CloudWatch adapter, Teams notifications, small web app) — that work is
-*not* in today's scope but the architecture must make it a plug-in, not a rewrite.
+this at it. The CloudWatch/ECS adapter is in scope and ships in the public repo: adapter
+*code* is generic; only configuration (log groups, cluster, region, credentials) and data
+are organisation-specific, and those never enter the repo. Teams notifications and a hosted
+web app remain out of scope, but the architecture must make them a plug-in, not a rewrite.
 
 ## 2. Goals (today)
 
 1. A new standalone public GitHub repo, `incident-investigator`, working end-to-end on a
    **synthetic demo** dataset that anyone can generate and run locally.
 2. **Pluggable telemetry backends.** The agent depends only on an abstract backend
-   interface. Ships with one implementation (SQLite synthetic). Grafana Loki, CloudWatch,
-   Elasticsearch/OpenSearch, Datadog etc. must be addable as a new adapter module with no
-   change to agent, tools, report, UI or evals.
+   interface. Ships with two implementations: SQLite (synthetic demo) and **CloudWatch/ECS**
+   (CloudWatch Logs Insights, CloudWatch metrics, ECS deployments as change events), the
+   latter tested offline against stubbed AWS responses — no AWS account needed for CI.
+   Grafana Loki, Elasticsearch/OpenSearch, Datadog etc. must be addable as a new adapter
+   module with no change to agent, tools, report, UI or evals.
 3. **Provider-agnostic LLM** via PydanticAI; model selected by config/env
    (e.g. `openai:gpt-…`, `anthropic:claude-sonnet-5-5`, `bedrock:…`, `ollama:…`).
 4. Two ways to use it: a **CLI** with a live step-by-step trace, and a **Streamlit web app**.
@@ -38,9 +43,9 @@ this at it later (CloudWatch adapter, Teams notifications, small web app) — th
 
 ## 3. Non-goals (today)
 
-- No real backend adapters (CloudWatch, Loki, …) — only the interface, a documented
-  "how to write an adapter" guide, and an adapter contract test suite that a new adapter
-  can run against itself.
+- No real backend adapters beyond CloudWatch/ECS (no Loki, OpenSearch, Datadog, …) — for
+  those, only the interface, a documented "how to write an adapter" guide, and an adapter
+  contract test suite that a new adapter can run against itself.
 - No alert ingestion (SNS/Alertmanager webhooks), no Teams/Slack delivery, no auth, no
   hosted deployment. Leave clear extension points; mention them in a README roadmap.
 - No multi-agent system, no LangGraph, no autonomous remediation.
@@ -57,6 +62,9 @@ this at it later (CloudWatch adapter, Teams notifications, small web app) — th
   trivially pass.
 - Any secret or API key committed. The course proxy key in the old `config.json` is never used
   or copied.
+- Any real (non-synthetic) telemetry committed. Run files hold raw tool results — i.e. real
+  log lines when pointed at CloudWatch — so they are written to the git-ignored `runs/`;
+  only runs against the synthetic backend are committed, under `examples/runs/`.
 - Tests that call a real LLM (CI must be free and deterministic).
 
 ## 5. Constraints
@@ -218,8 +226,23 @@ web app, whether planning is a separate LLM call, whether the DB file is committ
 - **Investigation clock:** "now" is a configurable reference time; for the synthetic
   backend it defaults to the end of the dataset's time span.
 
-## 8. Open items for the owner
+## 8. Open items for the owner (resolved 2026-10-26)
 
-- Which LLM API key/provider will be used to run evals and record the replay runs
-  (the course proxy key must not be used).
-- Git author name/email for commits (no global git identity configured on this machine).
+- LLM: the owner's own OpenAI key; default model `openai:gpt-4o-mini` (configurable).
+- Git identity: configured in the repo.
+
+## 9. Build order (agreed 2026-10-26)
+
+Agent-first: get a real investigation working end to end before widening anything.
+
+1. **Thin end-to-end slice.** Backend interface + adapter contract tests; a small seeded
+   synthetic dataset with 1–2 planted incidents; SQLite backend; core tools; agent with
+   `IncidentReport` output; `iinv investigate` with live trace; run files.
+   Done when `iinv investigate "checkout is slow since 06:30"` returns a grounded report
+   naming the planted root cause, with unit tests passing without an API key.
+2. **Widen.** Full dataset (~7 planted incidents incl. red herring and slow burn), replay,
+   `run_python` (subprocess sandbox), web search.
+3. **CloudWatch/ECS adapter**, passing the contract suite against stubbed AWS responses.
+4. **Evaluation harness** + measured README results table.
+5. **Polish**, in the §7a cut order: Streamlit app, Dockerfile, Docker sandbox,
+   multi-model comparison.
