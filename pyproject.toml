@@ -9,6 +9,7 @@ requires-python = ">=3.12"
 dependencies = [
     "pydantic-ai-slim[openai,anthropic]>=2.61",
     "pydantic-settings>=2.16",
+    "python-dotenv>=1.2.4",
     "rich>=15.0",
     "typer>=0.27",
 ]

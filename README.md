@@ -23,7 +23,12 @@ uv sync
 cp .env.example .env   # set INVESTIGATOR_MODEL and your provider key
 uv run iinv generate-data   # synthetic "Acme Commerce" dataset -> data/demo.db
 uv run iinv config
+uv run iinv investigate "checkout is slow since 06:30"
 ```
+
+Each investigation prints a live trace of the agent's plan and tool calls, then the report,
+and saves a JSON run file to `runs/` (git-ignored: run files contain raw log lines). Add
+`-o report.md` to also save the report as Markdown.
 
 ## Development
 

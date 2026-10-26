@@ -14,3 +14,11 @@ def demo_db(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 # Tests must never reach a real LLM provider (CI has no keys and must stay free).
 models.ALLOW_MODEL_REQUESTS = False
+
+
+@pytest.fixture(autouse=True)
+def isolated_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run each test in an empty directory so no developer `.env` (or API key) is picked up."""
+    monkeypatch.chdir(tmp_path)
+    for name in ("INVESTIGATOR_MODEL", "INVESTIGATOR_SQLITE_PATH", "INVESTIGATOR_RUNS_DIR"):
+        monkeypatch.delenv(name, raising=False)
