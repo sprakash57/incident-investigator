@@ -18,6 +18,7 @@ from incident_investigator.agent.deps import InvestigationDeps
 from incident_investigator.agent.trace import PlanRecord, ToolCallRecord, Trace
 from incident_investigator.config import get_settings
 from incident_investigator.demo.generate import DEFAULT_SEED, generate
+from incident_investigator.llm import resolve_model
 from incident_investigator.render import describe_call, report_markdown
 from incident_investigator.runs import run_and_record
 from incident_investigator.telemetry.registry import UnknownBackendError, get_backend
@@ -78,7 +79,7 @@ def _fail(message: str) -> NoReturn:
 
 def _model_for(name: str) -> Model | str:
     """Resolve the configured model. A seam so tests can substitute a scripted model."""
-    return name
+    return resolve_model(name)
 
 
 def _print_trace_item(item: ToolCallRecord | PlanRecord) -> None:
