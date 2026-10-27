@@ -109,3 +109,13 @@ def test_eval_rejects_unknown_scenario() -> None:
     result = CliRunner().invoke(cli.app, ["eval", "--scenario", "nope"])
     assert result.exit_code == 1
     assert "unknown scenario" in result.output
+
+
+def test_terms_match_from_word_start_only() -> None:
+    # A real Qwen report said "config loading"; that must not count as explaining traffic load.
+    args = good_report_args() | {
+        "root_cause_hypothesis": "payments v2.14.0 broke the pool via config loading"
+    }
+    score = score_run(SCENARIOS_BY_ID["checkout-slow"], make_run(args, []))
+    assert score.checks["mechanism: connection pool"]
+    assert not score.checks["timing: traffic ramp"]

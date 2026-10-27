@@ -11,7 +11,7 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class Check:
     name: str
-    any_of: tuple[str, ...]  # case-insensitive; passes if any appears
+    any_of: tuple[str, ...]  # case-insensitive; words match from a word start
     expect: bool = True  # False: none of the terms may appear (e.g. a red herring blamed)
     in_full_report: bool = False  # search the whole report, not just summary + root cause
 
@@ -33,7 +33,10 @@ SCENARIOS = (
             Check("names payments", ("payments",)),
             Check("names deploy v2.14.0", ("2.14.0",)),
             Check("mechanism: connection pool", ("pool", "max_connections")),
-            Check("timing: traffic ramp", ("traffic", "load", "ramp", "demand", "request volume")),
+            Check(
+                "timing: traffic ramp",
+                ("traffic", "ramp", "demand", "request volume", "peak", "higher load"),
+            ),
             Check("red herring not blamed", ("feature flag", "new-cart-ui"), expect=False),
         ),
     ),

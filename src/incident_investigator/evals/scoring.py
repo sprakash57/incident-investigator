@@ -1,5 +1,7 @@
 """Scores one run against its scenario."""
 
+import re
+
 from pydantic import BaseModel
 
 from incident_investigator.evals.scenarios import Scenario
@@ -28,6 +30,12 @@ class RunScore(BaseModel):
         return self.completed and all(self.checks.values())
 
 
+def _mentions(text: str, term: str) -> bool:
+    """Words match from a word start ("load" not in "loading"); versions match anywhere."""
+    pattern = re.escape(term.lower())
+    return re.search(rf"\b{pattern}" if term[0].isalpha() else pattern, text) is not None
+
+
 def score_run(scenario: Scenario, run: RunFile) -> RunScore:
     checks: dict[str, bool] = {}
     report = run.report
@@ -36,7 +44,7 @@ def score_run(scenario: Scenario, run: RunFile) -> RunScore:
         full = report_markdown(report).lower()
         for check in scenario.checks:
             text = full if check.in_full_report else focus
-            found = any(term.lower() in text for term in check.any_of)
+            found = any(_mentions(text, term) for term in check.any_of)
             checks[check.name] = found if check.expect else not found
     else:
         checks = {check.name: False for check in scenario.checks}
