@@ -30,6 +30,20 @@ Each investigation prints a live trace of the agent's plan and tool calls, then 
 and saves a JSON run file to `runs/` (git-ignored: run files contain raw log lines). Add
 `-o report.md` to also save the report as Markdown.
 
+## Evaluation
+
+```bash
+uv run iinv eval --model <model> --repeats 3
+```
+
+Runs each scenario (incidents planted in the synthetic dataset, with known root causes)
+several times and scores every report: right culprit, right mechanism, timing explained,
+red herring not blamed, logs actually read, known issues consulted, no made-up citations.
+Prints a summary table and saves it, with every run file, under `runs/evals/`.
+
+The checks are deterministic text checks, a floor rather than a judge: a report can pass
+them and still be weak, so read the run files too. No results are published here yet.
+
 ## Development
 
 ```bash

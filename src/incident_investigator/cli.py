@@ -16,11 +16,16 @@ from rich.table import Table
 from incident_investigator import __version__
 from incident_investigator.agent.deps import InvestigationDeps
 from incident_investigator.agent.trace import PlanRecord, ToolCallRecord, Trace
-from incident_investigator.config import get_settings
+from incident_investigator.config import Settings, get_settings
 from incident_investigator.demo.generate import DEFAULT_SEED, generate
+from incident_investigator.evals.runner import run_eval
+from incident_investigator.evals.scenarios import SCENARIOS, SCENARIOS_BY_ID
+from incident_investigator.evals.scoring import RunScore
 from incident_investigator.llm import resolve_model
 from incident_investigator.render import describe_call, report_markdown
 from incident_investigator.runs import run_and_record
+from incident_investigator.telemetry.base import TelemetryBackend
+from incident_investigator.telemetry.models import BackendInfo
 from incident_investigator.telemetry.registry import UnknownBackendError, get_backend
 
 app = typer.Typer(no_args_is_help=True, help="Investigate production incidents with an AI agent.")
@@ -95,6 +100,21 @@ def _print_trace_item(item: ToolCallRecord | PlanRecord) -> None:
     )
 
 
+def _setup(model: str | None) -> tuple[Settings, str, TelemetryBackend, BackendInfo, datetime]:
+    """Shared start-up: settings, model name, backend, and the reference 'now'."""
+    settings = get_settings()
+    model_name = model or settings.model
+    if not model_name:
+        _fail("no model configured: set INVESTIGATOR_MODEL in .env or pass --model")
+    try:
+        backend = get_backend(settings)
+        info = backend.describe()
+    except (FileNotFoundError, UnknownBackendError) as exc:
+        _fail(str(exc))
+    now = settings.now or min(datetime.now(UTC), info.data_end)
+    return settings, model_name, backend, info, now
+
+
 @app.command()
 def investigate(
     question: Annotated[str, typer.Argument(help="What is going wrong, in plain language.")],
@@ -106,16 +126,7 @@ def investigate(
     ] = None,
 ) -> None:
     """Investigate an incident and print a structured report."""
-    settings = get_settings()
-    model_name = model or settings.model
-    if not model_name:
-        _fail("no model configured: set INVESTIGATOR_MODEL in .env or pass --model")
-    try:
-        backend = get_backend(settings)
-        info = backend.describe()
-    except (FileNotFoundError, UnknownBackendError) as exc:
-        _fail(str(exc))
-    now = settings.now or min(datetime.now(UTC), info.data_end)
+    settings, model_name, backend, info, now = _setup(model)
 
     console.print(f"[bold]Investigating:[/] {question}")
     console.print(
@@ -151,3 +162,60 @@ def investigate(
         console.print(f"[dim]Report saved to {output}[/]")
     if run.error:
         _fail(f"investigation did not complete: {run.error}")
+
+
+def _print_score(score: RunScore) -> None:
+    verdict = "[green]PASS[/]" if score.passed else "[red]FAIL[/]"
+    failed = [name for name, ok in score.checks.items() if not ok]
+    detail = f"failed: {', '.join(failed)}" if failed else "all checks passed"
+    if score.error:
+        detail = f"{score.error.split(':', 1)[0]}; {detail}"
+    console.print(
+        f"{verdict} {score.scenario_id} [dim]{score.run_id}[/] {detail} "
+        f"[dim]({score.tool_calls} calls, {score.duration_s:.0f}s)[/]",
+        highlight=False,
+    )
+
+
+@app.command("eval")
+def eval_(
+    model: Annotated[
+        str | None, typer.Option(help="PydanticAI model string; overrides INVESTIGATOR_MODEL.")
+    ] = None,
+    repeats: Annotated[int, typer.Option(min=1, help="Runs per scenario.")] = 3,
+    scenario: Annotated[
+        list[str] | None,
+        typer.Option(help=f"Scenario id(s) to run (default: all of {', '.join(SCENARIOS_BY_ID)})."),
+    ] = None,
+) -> None:
+    """Run the evaluation scenarios against a model and score the reports."""
+    unknown = sorted(set(scenario or []) - set(SCENARIOS_BY_ID))
+    if unknown:
+        _fail(f"unknown scenario(s) {', '.join(unknown)}; choose from {', '.join(SCENARIOS_BY_ID)}")
+    selected = [SCENARIOS_BY_ID[s] for s in scenario] if scenario else list(SCENARIOS)
+    settings, model_name, backend, info, now = _setup(model)
+    console.print(
+        f"[bold]Eval[/] {len(selected)} scenario(s) x {repeats} · model {model_name} · "
+        f"backend {info.name}\n"
+    )
+    out_root = settings.runs_dir / "evals"
+    try:
+        with console.status("Running scenarios…"):
+            result = run_eval(
+                selected,
+                model_name=model_name,
+                model_for=lambda: _model_for(model_name),
+                backend=backend,
+                now=now,
+                repeats=repeats,
+                max_tool_calls=settings.max_tool_calls,
+                max_output_tokens=settings.max_output_tokens,
+                runs_dir=out_root,
+                on_score=_print_score,
+            )
+    except UserError as exc:
+        _fail(f"model setup failed: {exc}")
+    _, md_path = result.save(out_root / result.id)
+    console.print()
+    console.print(Markdown(md_path.read_text()))
+    console.print(f"\n[dim]Results and run files saved to {md_path.parent}[/]")
