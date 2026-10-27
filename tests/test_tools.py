@@ -174,3 +174,11 @@ def test_replanning_reminds_model_of_progress(ctx: Any) -> None:
     tools.get_topology(ctx)
     reply = tools.record_plan(ctx, ["a"])
     assert "already made 1 tool calls" in reply
+
+
+def test_aggregate_logs_defaults_to_service_and_template(ctx: Any) -> None:
+    rows = tools.aggregate_logs(ctx, START, NOW, services=["payments"], levels=[Level.ERROR])[
+        "rows"
+    ]
+    assert set(rows[0]) == {"service", "template", "count"}
+    assert any("acquiring db connection timed out" in row["template"] for row in rows)

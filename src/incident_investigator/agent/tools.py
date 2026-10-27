@@ -189,13 +189,14 @@ def aggregate_logs(
 ) -> dict[str, Any]:
     """Count log lines grouped by service, instance, level and/or message template.
 
-    `template` groups messages with their variable parts (ids, numbers) replaced, which is the
-    fastest way to see *which* errors are happening. Add `bucket_minutes` to see when.
+    By default groups by service and message template (the message with ids and numbers
+    replaced), so the result shows *which* errors are happening where. Add `bucket_minutes`
+    to see when.
 
     Args:
         start: Start of the window (UTC, inclusive).
         end: End of the window (UTC, exclusive). At most 7 days after start.
-        group_by: Any of service, instance, level, template. Defaults to service.
+        group_by: Any of service, instance, level, template. Defaults to service + template.
         services: Only these services. Omit for all.
         levels: Only these levels. Omit for all.
         contains: Case-insensitive text the message must contain.
@@ -208,7 +209,7 @@ def aggregate_logs(
         result = ctx.deps.backend.aggregate_logs(
             LogAggregation(
                 time_range=TimeRange(start=start, end=end),
-                group_by=group_by or [GroupField.SERVICE],
+                group_by=group_by or [GroupField.SERVICE, GroupField.TEMPLATE],
                 services=services or [],
                 levels=levels or [],
                 contains=contains,
